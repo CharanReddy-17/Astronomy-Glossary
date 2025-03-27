@@ -1,0 +1,782 @@
+#okay=1
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Astronomy Glossary Chatbot with Voice</title>
+    <style>
+        body { 
+            margin: 0; 
+            overflow: hidden; 
+            font-family: 'Arial', sans-serif;
+            background: #000;
+            color: white;
+        }
+        #info {
+            position: absolute;
+            top: 10px;
+            width: 100%;
+            text-align: center;
+            color: white;
+            z-index: 100;
+            font-size: 24px;
+            text-shadow: 0 0 10px #4fc3f7;
+        }
+        #search {
+            position: absolute;
+            top: 50px;
+            left: 20px;
+            z-index: 100;
+            background: rgba(0,0,0,0.7);
+            padding: 15px;
+            border-radius: 10px;
+            border: 1px solid #4fc3f7;
+            box-shadow: 0 0 15px rgba(79, 195, 247, 0.5);
+        }
+        input, button {
+            padding: 10px;
+            margin: 5px;
+            border-radius: 5px;
+            border: none;
+            font-size: 16px;
+        }
+        input {
+            width: 250px;
+            background: rgba(255,255,255,0.1);
+            color: white;
+        }
+        button {
+            background: linear-gradient(45deg, #4fc3f7, #7b1fa2);
+            color: white;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        button:hover {
+            transform: scale(1.05);
+            box-shadow: 0 0 10px #4fc3f7;
+        }
+        #voice-btn {
+            background: linear-gradient(45deg, #ff4081, #c2185b);
+            margin-left: 5px;
+        }
+        #voice-btn.listening {
+            animation: pulse 1.5s infinite;
+        }
+        #results {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            background: rgba(0,0,0,0.8);
+            color: white;
+            padding: 20px;
+            border-radius: 10px;
+            max-width: 350px;
+            max-height: 400px;
+            overflow-y: auto;
+            border: 1px solid #7b1fa2;
+            box-shadow: 0 0 20px rgba(123, 31, 162, 0.5);
+        }
+        .result-item {
+            margin-bottom: 15px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid #333;
+        }
+        .result-title {
+            color: #4fc3f7;
+            font-size: 20px;
+            margin-bottom: 10px;
+        }
+        .result-definition {
+            font-style: italic;
+            margin-bottom: 8px;
+        }
+        .result-details {
+            margin-bottom: 8px;
+        }
+        .result-fact {
+            color: #7b1fa2;
+            font-weight: bold;
+        }
+        #voice-status {
+            position: absolute;
+            top: 120px;
+            left: 20px;
+            background: rgba(0,0,0,0.7);
+            padding: 10px;
+            border-radius: 5px;
+            border: 1px solid #ff4081;
+            display: none;
+        }
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 0 rgba(255, 64, 129, 0.7); }
+            70% { box-shadow: 0 0 0 10px rgba(255, 64, 129, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(255, 64, 129, 0); }
+        }
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: rgba(0,0,0,0.3);
+        }
+        ::-webkit-scrollbar-thumb {
+            background: linear-gradient(#4fc3f7, #7b1fa2);
+            border-radius: 4px;
+        }
+        
+        /* NEW: Opening scenario styles */
+        #opening-scenario {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: #000;
+            z-index: 1000;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            opacity: 1;
+            transition: opacity 2s ease-out;
+        }
+        
+        #opening-text {
+            font-size: 3em;
+            text-align: center;
+            background: linear-gradient(90deg, #4fc3f7, #7b1fa2);
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+            text-shadow: 0 0 20px rgba(79, 195, 247, 0.5);
+            margin-bottom: 30px;
+            opacity: 0;
+            transform: translateY(50px);
+            animation: fadeIn 3s forwards 1s;
+        }
+        
+        #countdown {
+            font-size: 1.5em;
+            color: #4fc3f7;
+            opacity: 0;
+            animation: fadeIn 2s forwards 3s;
+        }
+        
+        @keyframes fadeIn {
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body>
+    <!-- NEW: Opening Scenario -->
+    <div id="opening-scenario">
+        <div id="opening-text">COSMIC EXPLORER</div>
+        <div id="countdown">Initializing stellar database...</div>
+    </div>
+
+    <!-- Original Interface -->
+    <div id="info">Astronomy Glossary - ChatBot</div>
+    <div id="search">
+        <input id="term" placeholder="Search black holes, planets, galaxies..." autofocus>
+        <button onclick="searchTerm()">Explore</button>
+        <button id="voice-btn" title="Voice Search">🎤</button>
+        <div style="margin-top:10px; font-size:12px;">Try: sun, neutron_star, milky_way, dark_matter</div>
+    </div>
+    <div id="voice-status">Listening...</div>
+    <div id="results"></div>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.min.js"></script>
+    <script>
+        // ================== OPENING SEQUENCE ==================
+        function getUsername() {
+            return localStorage.getItem('cosmicUsername') || 'Explorer';
+        }
+
+        function speakGreeting() {
+            const username = getUsername();
+            const msg = new SpeechSynthesisUtterance();
+            msg.text = `Hello ${username}, welcome to Cosmic Explorer. Ready to discover the universe?`;
+            msg.volume = 1;
+            msg.rate = 0.9;
+            msg.pitch = 1.2;
+            
+            if ('speechSynthesis' in window) {
+                setTimeout(() => {
+                    window.speechSynthesis.speak(msg);
+                }, 1500);
+            }
+        }
+
+        window.onload = function() {
+            const openingScene = document.getElementById('opening-scenario');
+            const countdown = document.getElementById('countdown');
+            
+            // Start countdown animation
+            let count = 3;
+            const countInterval = setInterval(() => {
+                countdown.textContent = count > 0 ? `Launching in ${count}...` : "Ignition sequence started!";
+                count--;
+                if (count < -1) {
+                    clearInterval(countInterval);
+                    
+                    // Fade out opening scene
+                    openingScene.style.opacity = '0';
+                    
+                    // Remove opening scene after fade
+                    setTimeout(() => {
+                        openingScene.remove();
+                        speakGreeting();
+                        showWelcomeMessage();
+                    }, 2000);
+                }
+            }, 800);
+            
+            // Start starfield animation early
+            initThreeJS();
+            animate();
+        };
+
+        function showWelcomeMessage() {
+            setTimeout(() => {
+                const resultsDiv = document.getElementById('results');
+                resultsDiv.innerHTML = `
+                    <div class="result-item">
+                        <div class="result-title">Welcome to Cosmic Explorer</div>
+                        <p>Search our astronomy database for information about:</p>
+                        <ul>
+                            <li>Stars (sun, neutron_star)</li>
+                            <li>Planets (earth, jupiter)</li>
+                            <li>Galaxies (milky_way, andromeda)</li>
+                            <li>Cosmic phenomena (black_hole, dark_matter)</li>
+                        </ul>
+                        <p>Press Enter, click Explore, or use voice search (🎤)</p>
+                    </div>
+                `;
+            }, 1000);
+        }
+
+        // ================== ORIGINAL ASTRONOMY DATABASE ==================
+        const astronomyDB = {
+            "cosmology": {
+                "big_bang": {
+                    "definition": "The prevailing cosmological model for the observable universe's creation ~13.8 billion years ago",
+                    "details": "The universe began as an extremely hot and dense point that rapidly expanded. Key evidence includes the cosmic microwave background radiation and the observed Hubble expansion of galaxies.",
+                    "color": 0xff4500,
+                    "fun_fact": "The Big Bang wasn't an explosion in space but rather an expansion of space itself."
+                },
+                "dark_matter": {
+                    "definition": "Non-luminous matter detectable only through gravitational effects",
+                    "details": "Comprises about 27% of the universe's mass-energy content. Its exact nature remains unknown, but it's essential for explaining galaxy rotation curves and cosmic structure formation.",
+                    "color": 0x4b0082,
+                    "fun_fact": "A dark matter particle could pass through a light-year of lead without interacting."
+                }
+            },
+            "stars": {
+                "sun": {
+                    "definition": "Our G-type main-sequence star",
+                    "details": "Contains 99.86% of the solar system's mass. Its core temperature reaches 15 million °C where nuclear fusion occurs.",
+                    "color": 0xffff00,
+                    "fun_fact": "The Sun loses 4 million tons of mass every second through nuclear fusion."
+                },
+                "neutron_star": {
+                    "definition": "Ultra-dense stellar remnant",
+                    "details": "Formed from supernova explosions. Just one teaspoon would weigh about a billion tons on Earth. Some rotate hundreds of times per second (pulsars).",
+                    "color": 0x00bfff,
+                    "fun_fact": "Neutron star surfaces are so smooth that any 'mountains' are less than 1cm tall."
+                }
+            },
+            "planets": {
+                "earth": {
+                    "definition": "Our life-bearing planet",
+                    "details": "The only known world with liquid water on the surface and active plate tectonics. Atmosphere is 78% nitrogen, 21% oxygen.",
+                    "color": 0x1e90ff,
+                    "fun_fact": "Earth's rotation is slowing at about 1.7 milliseconds per century due to tidal forces."
+                },
+                "jupiter": {
+                    "definition": "Largest planet in our solar system",
+                    "details": "Gas giant with a Great Red Spot storm that's lasted at least 400 years. Has 79 known moons including Ganymede (larger than Mercury).",
+                    "color": 0xff8c00,
+                    "fun_fact": "Jupiter's magnetic field is 20,000 times stronger than Earth's."
+                }
+            },
+            "galaxies": {
+                "milky_way": {
+                    "definition": "Our barred spiral galaxy",
+                    "details": "Contains 100-400 billion stars. The supermassive black hole Sagittarius A* lies at its center with 4 million solar masses.",
+                    "color": 0x9370db,
+                    "fun_fact": "It takes our solar system about 225-250 million years to complete one orbit around the galaxy."
+                },
+                "andromeda": {
+                    "definition": "Our nearest spiral galaxy neighbor",
+                    "details": "About 2.5 million light-years away and on collision course with the Milky Way in ~4.5 billion years. Contains about 1 trillion stars.",
+                    "color": 0xba55d3,
+                    "fun_fact": "Andromeda is already visible to the naked eye as a faint smudge in the night sky."
+                }
+            },
+            "phenomena": {
+                "black_hole": {
+                    "definition": "Region where gravity prevents anything, including light, from escaping",
+                    "details": "Form when massive stars collapse. The event horizon marks the point of no return. Supermassive versions exist at galaxy centers.",
+                    "color": 0x000000,
+                    "fun_fact": "Time runs slower near black holes due to extreme gravitational time dilation."
+                },
+                "quasar": {
+                    "definition": "Extremely luminous active galactic nucleus",
+                    "details": "Powered by supermassive black holes consuming matter. Can outshine entire galaxies despite being smaller than our solar system.",
+                    "color": 0xff1493,
+                    "fun_fact": "The brightest quasars can be seen from 10+ billion light-years away."
+                }
+            }
+        };
+
+        // ================== 3D VISUALIZATION SYSTEM ==================
+        let scene, camera, renderer, controls, starField;
+        let currentCelestialObject = {
+            mesh: null,
+            orbitRadius: 30,
+            orbitSpeed: 0.005,
+            rotationSpeed: 0.01,
+            orbitAngle: 0,
+            orbitGroup: null
+        };
+
+        function initThreeJS() {
+            scene = new THREE.Scene();
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(window.devicePixelRatio);
+            document.body.appendChild(renderer.domElement);
+
+            // Orbit controls
+            controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.05;
+            controls.minDistance = 10;
+            controls.maxDistance = 100;
+
+            // Starfield
+            const starsGeometry = new THREE.BufferGeometry();
+            const starsMaterial = new THREE.PointsMaterial({ 
+                color: 0xffffff,
+                size: 0.1,
+                transparent: true,
+                opacity: 0.8,
+                sizeAttenuation: true
+            });
+            const starsVertices = [];
+            
+            for (let i = 0; i < 10000; i++) {
+                const radius = Math.pow(Math.random(), 2) * 1000;
+                const theta = Math.random() * Math.PI * 2;
+                const phi = Math.random() * Math.PI;
+                
+                starsVertices.push(
+                    radius * Math.sin(phi) * Math.cos(theta),
+                    radius * Math.sin(phi) * Math.sin(theta),
+                    radius * Math.cos(phi)
+                );
+            }
+            
+            starsGeometry.setAttribute('position', new THREE.Float32BufferAttribute(starsVertices, 3));
+            starField = new THREE.Points(starsGeometry, starsMaterial);
+            scene.add(starField);
+
+            // Lighting
+            const ambientLight = new THREE.AmbientLight(0x404040, 0.5);
+            scene.add(ambientLight);
+            
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
+            directionalLight.position.set(1, 1, 1);
+            scene.add(directionalLight);
+            
+            const cameraLight = new THREE.PointLight(0xffffff, 0.5, 50);
+            camera.add(cameraLight);
+            scene.add(camera);
+
+            camera.position.z = 50;
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+            
+            starField.rotation.x += 0.0001;
+            starField.rotation.y += 0.0002;
+            
+            if (currentCelestialObject.mesh) {
+                currentCelestialObject.orbitAngle += currentCelestialObject.orbitSpeed;
+                
+                if (currentCelestialObject.orbitGroup) {
+                    currentCelestialObject.orbitGroup.rotation.y = currentCelestialObject.orbitAngle;
+                }
+                
+                currentCelestialObject.mesh.rotation.y += currentCelestialObject.rotationSpeed;
+                
+                if (currentCelestialObject.mesh.userData.isPulsar) {
+                    const pulse = Math.sin(Date.now() * 0.005) * 0.1 + 1;
+                    currentCelestialObject.mesh.scale.set(pulse, pulse, pulse);
+                }
+            }
+            
+            renderer.render(scene, camera);
+        }
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        // ================== SEARCH FUNCTIONALITY ==================
+        function searchTerm() {
+            const term = document.getElementById('term').value.toLowerCase().replace(/ /g, '_');
+            const resultsDiv = document.getElementById('results');
+            resultsDiv.innerHTML = '';
+            
+            let found = false;
+            for (const category in astronomyDB) {
+                if (astronomyDB[category][term]) {
+                    const result = astronomyDB[category][term];
+                    displayResult(term, result, category);
+                    create3DObject(term, result.color);
+                    found = true;
+                    break;
+                }
+            }
+            
+            if (!found) {
+                resultsDiv.innerHTML = `
+                    <div class="result-item">
+                        <div class="result-title">Not Found</div>
+                        <p>Try searching for:</p>
+                        <ul>
+                            <li>sun</li>
+                            <li>black_hole</li>
+                            <li>milky_way</li>
+                            <li>dark_matter</li>
+                            <li>neutron_star</li>
+                        </ul>
+                    </div>
+                `;
+                removeCurrentCelestialObject();
+            }
+        }
+
+        function displayResult(term, data, category) {
+            const resultsDiv = document.getElementById('results');
+            const formattedTerm = term.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+            const formattedCategory = category.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+            
+            resultsDiv.innerHTML = `
+                <div class="result-item">
+                    <div class="result-title">${formattedTerm}</div>
+                    <div style="color:#aaa; font-size:0.8em;">${formattedCategory}</div>
+                    <div class="result-definition">${data.definition}</div>
+                    <div class="result-details">${data.details}</div>
+                    <div class="result-fact">✨ Fun Fact: ${data.fun_fact}</div>
+                </div>
+            `;
+        }
+
+        function removeCurrentCelestialObject() {
+            if (currentCelestialObject.mesh) {
+                if (currentCelestialObject.orbitGroup) {
+                    scene.remove(currentCelestialObject.orbitGroup);
+                } else {
+                    scene.remove(currentCelestialObject.mesh);
+                }
+                currentCelestialObject.mesh = null;
+                currentCelestialObject.orbitGroup = null;
+            }
+        }
+
+        function create3DObject(term, color) {
+            removeCurrentCelestialObject();
+            
+            const orbitGroup = new THREE.Group();
+            scene.add(orbitGroup);
+            currentCelestialObject.orbitGroup = orbitGroup;
+            
+            let object;
+            let isPlanet = false;
+            
+            if (term === 'black_hole') {
+                const diskGeometry = new THREE.TorusGeometry(10, 3, 16, 100);
+                const diskMaterial = new THREE.MeshPhongMaterial({ 
+                    color: 0x4fc3f7,
+                    emissive: 0x00a8ff,
+                    emissiveIntensity: 0.5,
+                    side: THREE.DoubleSide,
+                    transparent: true,
+                    opacity: 0.8
+                });
+                const disk = new THREE.Mesh(diskGeometry, diskMaterial);
+                disk.rotation.x = Math.PI / 2;
+                
+                const sphereGeo = new THREE.SphereGeometry(5, 64, 64);
+                const sphereMat = new THREE.MeshBasicMaterial({ 
+                    color: 0x000000,
+                    wireframe: true
+                });
+                const sphere = new THREE.Mesh(sphereGeo, sphereMat);
+                
+                object = new THREE.Group();
+                object.add(disk);
+                object.add(sphere);
+                
+                currentCelestialObject.orbitSpeed = 0.003;
+                currentCelestialObject.rotationSpeed = 0.02;
+                
+            } else if (term === 'milky_way' || term === 'andromeda') {
+                const geometry = new THREE.CircleGeometry(15, 64);
+                const canvas = document.createElement('canvas');
+                canvas.width = 256;
+                canvas.height = 256;
+                const ctx = canvas.getContext('2d');
+                
+                ctx.fillStyle = `rgba(${color >> 16}, ${(color >> 8) & 0xff}, ${color & 0xff}, 0.8)`;
+                for (let i = 0; i < 5; i++) {
+                    ctx.beginPath();
+                    ctx.arc(128, 128, 100, i * 0.4, i * 0.4 + 0.3);
+                    ctx.lineTo(128, 128);
+                    ctx.fill();
+                }
+                
+                const texture = new THREE.CanvasTexture(canvas);
+                const material = new THREE.MeshBasicMaterial({ 
+                    map: texture,
+                    side: THREE.DoubleSide,
+                    transparent: true
+                });
+                
+                object = new THREE.Mesh(geometry, material);
+                object.rotation.x = Math.PI / 2;
+                
+                currentCelestialObject.orbitSpeed = 0.001;
+                currentCelestialObject.rotationSpeed = 0.005;
+                
+            } else if (term === 'neutron_star') {
+                const geometry = new THREE.SphereGeometry(4, 64, 64);
+                const material = new THREE.MeshPhongMaterial({ 
+                    color: color,
+                    emissive: color,
+                    emissiveIntensity: 0.5,
+                    shininess: 100
+                });
+                object = new THREE.Mesh(geometry, material);
+                
+                const beamGeometry = new THREE.CylinderGeometry(0.5, 0.5, 10, 8);
+                const beamMaterial = new THREE.MeshBasicMaterial({
+                    color: color,
+                    transparent: true,
+                    opacity: 0.6
+                });
+                
+                const beam1 = new THREE.Mesh(beamGeometry, beamMaterial);
+                beam1.rotation.z = Math.PI / 2;
+                beam1.position.x = 7;
+                
+                const beam2 = new THREE.Mesh(beamGeometry, beamMaterial);
+                beam2.rotation.z = Math.PI / 2;
+                beam2.position.x = -7;
+                
+                object.add(beam1);
+                object.add(beam2);
+                
+                object.userData.isPulsar = true;
+                currentCelestialObject.orbitSpeed = 0.01;
+                currentCelestialObject.rotationSpeed = 0.05;
+                
+            } else {
+                isPlanet = true;
+                const geometry = new THREE.SphereGeometry(5, 64, 64);
+                const material = new THREE.MeshPhongMaterial({ 
+                    color: color,
+                    specular: 0x111111,
+                    shininess: 30,
+                    bumpScale: 0.05
+                });
+                
+                if (term === 'earth' || term === 'jupiter') {
+                    const canvas = document.createElement('canvas');
+                    canvas.width = 256;
+                    canvas.height = 256;
+                    const ctx = canvas.getContext('2d');
+                    
+                    if (term === 'earth') {
+                        ctx.fillStyle = '#1e90ff';
+                        ctx.fillRect(0, 0, 256, 256);
+                        
+                        ctx.fillStyle = '#3cb371';
+                        ctx.beginPath();
+                        ctx.ellipse(70, 80, 50, 30, 0, 0, Math.PI * 2);
+                        ctx.fill();
+                        
+                        ctx.beginPath();
+                        ctx.ellipse(180, 150, 40, 25, 0, 0, Math.PI * 2);
+                        ctx.fill();
+                        
+                        ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+                        for (let i = 0; i < 10; i++) {
+                            const x = Math.random() * 256;
+                            const y = Math.random() * 256;
+                            const size = 10 + Math.random() * 20;
+                            ctx.beginPath();
+                            ctx.arc(x, y, size, 0, Math.PI * 2);
+                            ctx.fill();
+                        }
+                    } else if (term === 'jupiter') {
+                        ctx.fillStyle = '#ff8c00';
+                        ctx.fillRect(0, 0, 256, 256);
+                        
+                        ctx.fillStyle = '#cc7a00';
+                        for (let i = 0; i < 8; i++) {
+                            const y = i * 30 + Math.random() * 10;
+                            const height = 10 + Math.random() * 5;
+                            ctx.fillRect(0, y, 256, height);
+                        }
+                        
+                        ctx.fillStyle = '#ff4500';
+                        ctx.beginPath();
+                        ctx.ellipse(180, 80, 25, 15, 0, 0, Math.PI * 2);
+                        ctx.fill();
+                    }
+                    
+                    const texture = new THREE.CanvasTexture(canvas);
+                    material.map = texture;
+                    
+                    const bumpCanvas = document.createElement('canvas');
+                    bumpCanvas.width = 256;
+                    bumpCanvas.height = 256;
+                    const bumpCtx = bumpCanvas.getContext('2d');
+                    
+                    const gradient = bumpCtx.createLinearGradient(0, 0, 256, 256);
+                    gradient.addColorStop(0, '#000000');
+                    gradient.addColorStop(1, '#888888');
+                    bumpCtx.fillStyle = gradient;
+                    bumpCtx.fillRect(0, 0, 256, 256);
+                    
+                    const imageData = bumpCtx.getImageData(0, 0, 256, 256);
+                    const data = imageData.data;
+                    for (let i = 0; i < data.length; i += 4) {
+                        const noise = Math.random() * 50;
+                        data[i] += noise;
+                        data[i + 1] += noise;
+                        data[i + 2] += noise;
+                    }
+                    bumpCtx.putImageData(imageData, 0, 0);
+                    
+                    const bumpTexture = new THREE.CanvasTexture(bumpCanvas);
+                    material.bumpMap = bumpTexture;
+                }
+                
+                object = new THREE.Mesh(geometry, material);
+                
+                if (term === 'earth') {
+                    const glowGeometry = new THREE.SphereGeometry(5.1, 64, 64);
+                    const glowMaterial = new THREE.MeshBasicMaterial({
+                        color: 0x7ec0ee,
+                        transparent: true,
+                        opacity: 0.2,
+                        side: THREE.BackSide
+                    });
+                    const glow = new THREE.Mesh(glowGeometry, glowMaterial);
+                    glow.scale.set(1.1, 1.1, 1.1);
+                    object.add(glow);
+                }
+                
+                if (term === 'sun') {
+                    const glowGeometry = new THREE.SphereGeometry(5.5, 64, 64);
+                    const glowMaterial = new THREE.MeshBasicMaterial({
+                        color: color,
+                        transparent: true,
+                        opacity: 0.3
+                    });
+                    const glow = new THREE.Mesh(glowGeometry, glowMaterial);
+                    object.add(glow);
+                    
+                    const coronaGeometry = new THREE.SphereGeometry(7, 64, 64);
+                    const coronaMaterial = new THREE.MeshBasicMaterial({
+                        color: color,
+                        transparent: true,
+                        opacity: 0.1,
+                        side: THREE.BackSide
+                    });
+                    const corona = new THREE.Mesh(coronaGeometry, coronaMaterial);
+                    object.add(corona);
+                    
+                    currentCelestialObject.rotationSpeed = 0.02;
+                } else {
+                    currentCelestialObject.rotationSpeed = 0.005;
+                }
+                
+                currentCelestialObject.orbitSpeed = isPlanet ? 0.002 : 0.005;
+            }
+            
+            object.position.x = currentCelestialObject.orbitRadius;
+            orbitGroup.add(object);
+            currentCelestialObject.mesh = object;
+            currentCelestialObject.orbitAngle = 0;
+        }
+
+        // ================== VOICE SEARCH FUNCTIONALITY ==================
+        const voiceBtn = document.getElementById('voice-btn');
+        const voiceStatus = document.getElementById('voice-status');
+        
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        let recognition;
+        
+        if (SpeechRecognition) {
+            recognition = new SpeechRecognition();
+            recognition.continuous = false;
+            recognition.interimResults = false;
+            recognition.lang = 'en-US';
+            
+            recognition.onstart = function() {
+                voiceBtn.classList.add('listening');
+                voiceStatus.style.display = 'block';
+            };
+            
+            recognition.onend = function() {
+                voiceBtn.classList.remove('listening');
+                voiceStatus.style.display = 'none';
+            };
+            
+            recognition.onresult = function(event) {
+                const transcript = event.results[0][0].transcript;
+                document.getElementById('term').value = transcript;
+                searchTerm();
+            };
+            
+            recognition.onerror = function(event) {
+                console.error('Speech recognition error', event.error);
+                voiceStatus.textContent = 'Error: ' + event.error;
+                setTimeout(() => {
+                    voiceStatus.style.display = 'none';
+                }, 3000);
+            };
+            
+            voiceBtn.addEventListener('click', function() {
+                try {
+                    recognition.start();
+                } catch (e) {
+                    voiceStatus.textContent = 'Error: ' + e.message;
+                    voiceStatus.style.display = 'block';
+                    setTimeout(() => {
+                        voiceStatus.style.display = 'none';
+                    }, 3000);
+                }
+            });
+        } else {
+            voiceBtn.disabled = true;
+            voiceBtn.title = 'Voice search not supported in your browser';
+        }
+
+        document.getElementById('term').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                searchTerm();
+            }
+        });
+    </script>
+</body>
+</html>
